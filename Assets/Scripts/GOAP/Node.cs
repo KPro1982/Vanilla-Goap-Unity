@@ -1,44 +1,92 @@
-using System.Collections.Generic;
-using UnityEngine;
+
 
 // a node in the plan graph to be constructed
-public class Node {
+public class Node
+{
+    //the action this node represents in the plan
+    public IAction action;
+
+    //how much it cost to get to this node
+    public float cost;
 
     //the parent node this node is connected to
     public Node parent;
-    //how much it cost to get to this node
-    public float cost;
+
     //the state of the environment by the time the
     //action assigned to this node is achieved
-    public Dictionary<string, int> state;
-    //the action this node represents in the plan
-    public GAction action;
+    public ListOfStates state;
 
     // Constructor
-    public Node(Node parent, float cost, Dictionary<string, int> allStates, GAction action) {
-
+    public Node(Node parent, float cost, ListOfStates allStates, IAction action)
+    {
         this.parent = parent;
         this.cost = cost;
-        this.state = new Dictionary<string, int>(allStates);
+        state = new ListOfStates(allStates);
         this.action = action;
     }
 
     // Overloaded Constructor
-    public Node(Node parent, float cost, Dictionary<string, int> allStates, Dictionary<string, int> beliefStates, GAction action) {
-
+    public Node(Node parent, float cost, ListOfStates allStates, ListOfStates beliefStates,
+        GAction action)
+    {
         this.parent = parent;
         this.cost = cost;
-        this.state = new Dictionary<string, int>(allStates);
+        state = new ListOfStates(allStates);
 
         //as well as the world states add the agents beliefs as states that can be
         //used to match preconditions
-        foreach (KeyValuePair<string, int> b in beliefStates) {
-
-            if (!this.state.ContainsKey(b.Key)) {
-
-                this.state.Add(b.Key, b.Value);
+        foreach (var s in beliefStates)
+        {
+            if (!state.HasState(s.Key))
+            {
+                state.AddState(s);
             }
         }
+
         this.action = action;
+    }
+
+    public string PrintNode()
+    {
+
+
+
+        string dump = "";
+        if (action != null)
+        {
+            dump += "Action: ";
+        
+            var pre = "";
+            var eff = "";
+
+            GAction ga = (GAction) action;
+            foreach (var p in ga.preConditions)
+            {
+                if (pre != "")
+                    pre += ", ";
+                pre += p.Key;
+            }
+
+            foreach (var e in ga.Effects)
+            {
+                if (eff != "")
+                    eff += ", ";
+                eff += e.Key;
+            }
+
+            dump += "====  " + ga.Name + "(" + pre + ")(" + eff + ")\n";
+        
+
+            dump += "All States: ";
+            foreach (var s in state)
+            {
+                dump += "---: " + s.Key;
+            
+            }
+        }
+
+        return dump;
+
+
     }
 }

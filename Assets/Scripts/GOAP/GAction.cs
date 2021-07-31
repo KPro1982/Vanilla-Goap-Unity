@@ -2,95 +2,119 @@
 using UnityEngine;
 using UnityEngine.AI;
 
-public abstract class GAction : MonoBehaviour {
-
+public abstract class GAction :  IAction
+{
     // Name of the action
-    public string actionName = "Action";
+
     // Cost of the action
+    public List<EntityType> permittedEntities;
+
     public float cost = 1.0f;
+
     // Target where the action is going to take place
-    public GameObject target; 
+    public GameObject target;
+
     // Store the tag
     public string targetTag;
+
     // Duration the action should take
-    public float duration = 0.0f;
-    // An array of WorldStates of preconditions
-    public WorldState[] preConditions;
-    // An array of WorldStates of afterEffects
-    public WorldState[] afterEffects;
-    // The NavMEshAgent attached to the agent
-    public NavMeshAgent agent;
-    // Dictionary of preconditions
-    public Dictionary<string, int> preconditions;
-    // Dictionary of effects
-    public Dictionary<string, int> effects;
-    // State of the agent
-    public WorldStates agentBeliefs;
+    public float duration;
+
+    // An array of GStates of preconditions
+    public ListOfStates preConditions;
+
+    // An array of GStates of effects
+    public ListOfStates effects;
+    
+    // State of the Agent
+    public ListOfStates agentBeliefs;
+
+    public ListOfStates beliefs;
+
+    // Are we currently performing an action?
+    public bool isRunning;
+
     // Access our inventory
     public GInventory inventory;
-    public WorldStates beliefs;
-    // Are we currently performing an action?
-    public bool running = false;
+
 
     // Constructor
-    public GAction() {
-
-        // Set up the preconditions and effects
-        preconditions = new Dictionary<string, int>();
-        effects = new Dictionary<string, int>();
+    protected GAction()
+    {
+        PermittedEntities = new List<EntityType>();
+        agentBeliefs = new ListOfStates();
+        preConditions = new ListOfStates();
+        Effects = new ListOfStates();
+        inventory = new GInventory();
     }
 
-    private void Awake() {
-
-        // Get hold of the agents NavMeshAgent
-        agent = this.gameObject.GetComponent<NavMeshAgent>();
-
-        // Check if there are any preConditions in the Inspector
-        // and add to the dictionary
-        if (preConditions != null) {
-
-            foreach (WorldState w in preConditions) {
-
-                // Add each item to our Dictionary
-                preconditions.Add(w.key, w.value);
-            }
-        }
-
-        // Check if there are any afterEffects in the Inspector
-        // and add to the dictionary
-        if (afterEffects != null) {
-
-            foreach (WorldState w in afterEffects) {
-
-                // Add each item to our Dictionary
-                effects.Add(w.key, w.value);
-            }
-        }
-        // Populate our inventory
-        inventory = this.GetComponent<GAgent>().inventory;
-        // Get our agents beliefs
-        beliefs = this.GetComponent<GAgent>().beliefs;
+    public bool IsRunning
+    {
+        get => isRunning;
+        set => isRunning = value;
     }
 
-    public bool IsAchievable() {   // test tags to see if the particular agent type can use the action
-
-        return true;
+    public GameObject Target
+    {
+        get => target;
+        set => target = value;
     }
+
+    public string TargetTag
+    {
+        get => targetTag;
+        set => targetTag = value;
+    }
+
+   
+    public float Cost
+    {
+        get => cost;
+        set => cost = value;
+    }
+
+    public float Duration
+    {
+        get => duration;
+        set => duration = value;
+    }
+
+    public virtual string Name { get; }
+
+    public ListOfStates Effects
+    {
+        get => effects;
+        set => effects = value;
+    }
+
+    public List<EntityType> PermittedEntities
+    {
+        get => permittedEntities;
+        set => permittedEntities = value;
+    }
+
+
+    public bool
+        IsAchievable() => // test tags to see if the particular navAgent type can use the action
+        true;
 
     //check if the action is achievable given the condition of the
-    //world and trying to match with the actions preconditions
-    public bool IsAchievableGiven(Dictionary<string, int> conditions) {
-
-        foreach (KeyValuePair<string, int> p in preconditions) {
-
-            if (!conditions.ContainsKey(p.Key)) {
-
+    //world and trying to match with the AllPotentialActions preconditions
+    public bool IsAchievableGiven(ListOfStates conditions)
+    {
+        foreach (var p in preConditions)
+        {
+            if (!conditions.HasState(p.Key))
+            {
                 return false;
             }
         }
+
         return true;
     }
 
     public abstract bool PrePerform();
+    public abstract bool Perform();
     public abstract bool PostPerform();
+
 }

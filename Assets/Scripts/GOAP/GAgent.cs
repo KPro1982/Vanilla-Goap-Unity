@@ -1,146 +1,155 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
+using UnityEngine.AI;
 
-public class SubGoal {
+public abstract class GAgent : MonoBehaviour
+{
+    // Our local states
+    public ListOfStates entityStates = new();
 
-    // Dictionary to store our goals
-    public Dictionary<string, int> sGoals;
-    // Bool to store if goal should be removed after it has been achieved
-    public bool remove;
+    // Action Queue
+    public Queue<IAction> _actionQueue;
 
-    // Constructor
-    public SubGoal(string s, int i, bool r) {
-
-        sGoals = new Dictionary<string, int>();
-        sGoals.Add(s, i);
-        remove = r;
-    }
-}
-
-public class GAgent : MonoBehaviour {
-
-    // Store our list of actions
-    public List<GAction> actions = new List<GAction>();
-    // Dictionary of subgoals
-    public Dictionary<SubGoal, int> goals = new Dictionary<SubGoal, int>();
-    // Our inventory
-    public GInventory inventory = new GInventory();
-    // Our beliefs
-    public WorldStates beliefs = new WorldStates();
+    // Our subgoal
+    private SubGoal _currentGoal;
 
     // Access the planner
-    GPlanner planner;
-    // Action Queue
-    Queue<GAction> actionQueue;
+    private GPlanner _planner;
+    
+
+    // Store our list of AllPotentialActions
+    public List<IAction> AllPotentialActions = new();
+
     // Our current action
-    public GAction currentAction;
-    // Our subgoal
-    SubGoal currentGoal;
+    public IAction currentAction;
 
-    // Start is called before the first frame update
-    public void Start() {
+    protected EntityType entityType;
+    private NavMeshAgent NavAgent;
 
-        GAction[] acts = this.GetComponents<GAction>();   // Modify so that it picks up all actions in a pool of actions.
-        foreach (GAction a in acts) {
+    // List of agent's goals
+    public List<SubGoal> goals = new();
 
-            actions.Add(a);
-        }
+    // Our inventory
+    public GInventory inventory = new();
+
+    private bool invoked;
+
+
+    public virtual void Awake()
+    {
+        AllPotentialActions = ActionFactory.GetActionsByEntityType(entityType);
+        NavAgent = GetComponent<NavMeshAgent>();
     }
 
-    bool invoked = false;
-    //an invoked method to allow an agent to be performing a task
-    //for a set location
-    public void CompleteAction() {
-
-        currentAction.running = false;
-        currentAction.PostPerform();
-        invoked = false;
+    public virtual void Start()
+    {
     }
 
-    void LateUpdate() {
-
-        //if there's a current action and it is still running
-        if (currentAction != null && currentAction.running) {
-
-            // Find the distance to the target
-            float distanceToTarget = Vector3.Distance(currentAction.target.transform.position, this.transform.position);
-            // Check the agent has a goal and has reached that goal
-            if (currentAction.agent.hasPath && distanceToTarget < 2.0f) { // currentAction.agent.remainingDistance < 1.0f) 
-
-                if (!invoked) {
-
+    private void LateUpdate()
+    {
+        //if there's a current action and it is still IsRunning
+        if (currentAction != null && currentAction.IsRunning)
+        {
+            // Find the distance to the Target
+            var distanceToTarget = Vector3.Distance(currentAction.Target.transform.position,
+                transform.position);
+            // Check the navAgent has a goal and has reached that goal
+            if (NavAgent.hasPath && distanceToTarget < 2.0f)
+            {
+                
+                if (!invoked)
+                {
                     //if the action movement is complete wait
                     //a certain duration for it to be completed
-                    Invoke("CompleteAction", currentAction.duration);
+                    Invoke("CompleteAction", currentAction.Duration);  //TODO move this logic within the GAction class
                     invoked = true;
                 }
             }
+
             return;
         }
 
         // Check we have a planner and an actionQueue
-        if (planner == null || actionQueue == null) {
-
+          if (_planner == null || _actionQueue == null)
+        {
             // If planner is null then create a new one
-            planner = new GPlanner();
+            _planner = new GPlanner();
 
             // Sort the goals in descending order and store them in sortedGoals
-            var sortedGoals = from entry in goals orderby entry.Value descending select entry;
+            // Skipping this step with unknown consequences
+
 
             //look through each goal to find one that has an achievable plan
-            foreach (KeyValuePair<SubGoal, int> sg in sortedGoals) {
-
-                actionQueue = planner.plan(actions, sg.Key.sGoals, beliefs);
+            foreach (var sg in goals)
+            {
+                _actionQueue = _planner.Plan(AllPotentialActions, sg, entityStates);
                 // If actionQueue is not = null then we must have a plan
-                if (actionQueue != null) {
-
+                if (_actionQueue != null)
+                {
                     // Set the current goal
-                    currentGoal = sg.Key;
+                    _currentGoal = sg;
                     break;
                 }
             }
         }
 
         // Have we an actionQueue
-        if (actionQueue != null && actionQueue.Count == 0) {
-
-            // Check if currentGoal is removable
-            if (currentGoal.remove) {
-
+        if (_actionQueue != null && _actionQueue.Count == 0)
+        {
+            // Check if currentGoal is Removable
+            if (_currentGoal.Removeable)
+            {
                 // Remove it
-                goals.Remove(currentGoal);
+                goals.Remove(_currentGoal);
             }
+
             // Set planner = null so it will trigger a new one
-            planner = null;
+            _planner = null;
         }
 
-        // Do we still have actions
-        if (actionQueue != null && actionQueue.Count > 0) {
-
+        // Do we still have AllPotentialActions
+        if (_actionQueue != null && _actionQueue.Count > 0)
+        {
             // Remove the top action of the queue and put it in currentAction
-            currentAction = actionQueue.Dequeue();
+            currentAction = _actionQueue.Dequeue();
 
-            if (currentAction.PrePerform()) {
-
-                // Get our current object
-                if (currentAction.target == null && currentAction.targetTag != "") {
-
-                    currentAction.target = GameObject.FindWithTag(currentAction.targetTag);
-                }
-
-                if (currentAction.target != null) {
-
-                    // Activate the current action
-                    currentAction.running = true;
-                    // Pass Unities AI the destination for the agent
-                    currentAction.agent.SetDestination(currentAction.target.transform.position);
-                }
-            } else {
-
+            if (currentAction.PrePerform())
+            {
+                MoveToTarget();
+            }
+            else
+            {
                 // Force a new plan
-                actionQueue = null;
+                _actionQueue = null;
             }
         }
     }
+
+    private void MoveToTarget()
+    {
+        
+        if (currentAction.Target != null)
+        {
+            // Activate the current action
+            currentAction.IsRunning = true;
+            // Pass Unities AI the destination for the navAgent
+            NavAgent.SetDestination(currentAction.Target.transform.position);
+        }
+    }
+
+    //an invoked method to allow an navAgent to be performing a task
+    //for a set location
+    public void CompleteAction()
+    {
+        currentAction.IsRunning = false;
+        currentAction.PostPerform();
+        invoked = false;
+    }
+}
+
+public enum EntityType
+{
+    None,
+    Nurse,
+    Miner
 }
